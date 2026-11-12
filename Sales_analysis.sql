@@ -48,7 +48,7 @@ select sum(quantity) from fact_sales
 
 
 -- Products that earned the most
-select top 10 product_name,category,subcategory,sum(sales_amount)as total_revenue from fact_sales f 
+select top 30 product_name,category,subcategory,sum(sales_amount)as total_revenue from fact_sales f 
 join dim_products p on p.product_key=f.product_key group by p.product_name,p.category,p.subcategory order by total_revenue desc
 -- Products that sold the most 
 select top 10 product_name,category,price,sales_amount,sum(quantity) total_units from fact_sales
@@ -105,18 +105,16 @@ order by units_ordered desc
 
 
 -- Products that generate the most profit 
-select 
-top 20
-product_name,
-sum(cost*quantity) as total_cost,
-sum(sales_amount) as total_sales,
-SUM(sales_amount - cost * quantity) AS profit 
+select top 20
+    p.product_name,
+    p.subcategory,
+    sum(p.cost * f.quantity) as total_cost,
+    sum(f.sales_amount) as total_sales,
+    sum(f.sales_amount - p.cost * f.quantity) as profit
 from fact_sales f
-join dim_products p on f.product_key=p.product_key
-group by product_name
-order by profit desc  
-
-
+join dim_products p on f.product_key = p.product_key
+group by p.product_name, p.subcategory
+order by profit desc
 
 
 select top 10 sum(quantity)as quantity_sold,category,subcategory from fact_sales 
@@ -132,6 +130,13 @@ select
 count(distinct order_number) number_of_orders
 from fact_sales
 group by YEAR(order_date), MONTH(order_date)
+order by number_of_orders desc
+
+select 
+ MONTH(order_date) AS month,
+count(distinct order_number) number_of_orders
+from fact_sales
+group by  MONTH(order_date)
 order by number_of_orders desc
 
 -- Most ordered product for each date 
@@ -255,14 +260,13 @@ select country,count(distinct f.customer_key) as number_of_customers from dim_cu
  join fact_sales f on c.customer_key=f.customer_key 
  join dim_products p on p.product_key =f.product_key
  group by country,product_name
- order by number_of_orders desc
  )
 
  select country,
  product_name,
  number_of_orders
  from (
- select *, row_number() over (partition by country order by number_of_products desc )as rn
+ select *, row_number() over (partition by country order by number_of_orders desc )as rn
  from number_products_per_country
  )x
  where rn between 1 and 5
@@ -273,24 +277,44 @@ from dim_customers c join fact_sales f on f.customer_key =c.customer_key
 group by datediff(year,birthdate,getdate())
 order by number_of_orders desc
 
+-- New customers vs retaining customers
+with first_orders as (
+    select customer_key, min(cast(order_date as date)) as first_order
+    from fact_sales
+    group by customer_key
+)
+select 
+    format(f.order_date, 'yyyy-MM') as order_month,
+    count(distinct case when format(fo.first_order, 'yyyy-MM') = format(f.order_date, 'yyyy-MM') 
+                        then f.customer_key end) as new_customers,
+    count(distinct f.customer_key) as active_customers
+from fact_sales f
+join first_orders fo on fo.customer_key = f.customer_key
+group by format(f.order_date, 'yyyy-MM')
+order by order_month
 
--- Customers who come back 15 dayrs or less after their first purchase 
+-- Customers who come back 15 days or less after their first purchase 
 with orders as 
-(select distinct c.customer_key,first_name,last_name,cast(order_date as date) as order_date from dim_customers c 
+(select distinct c.customer_key,first_name,last_name,country,cast(order_date as date) as order_date from dim_customers c 
 join fact_sales f on c.customer_key=f.customer_key )
 
 ,next_order as 
-(select customer_key,first_name,last_name,order_date,lead(order_date)
+(select customer_key,first_name,last_name,country,order_date,lead(order_date)
 over(partition by customer_key order by order_date)as next_order_date from orders )
 
 select distinct customer_key,
 first_name,
 last_name,
+country,
 order_date,
 next_order_date
-from next_order where datediff(d,order_date,next_order_date) between 1 and 15
+from next_order where datediff(d,order_date,next_order_date) between 1 and 30
+
+
+
 
 -- Customers who made one order and never came back
+with one_time_customers as ( 
 select c.customer_key,
 first_name,
 last_name,
@@ -299,9 +323,15 @@ from dim_customers c
 join fact_sales f on f.customer_key=c.customer_key
 group by c.customer_key,first_name,last_name
 having count(distinct cast(f.order_date as date)) = 1
+)
 
+-- Percentage of customers who made one order and who made more than one 
+select
+    round(100.0 *
+        (select count(distinct customer_key) from one_time_customers)
+        / (select count(distinct customer_key) from dim_customers),
+    2) as pct_one_time
 -- how long does it take customers to make another purchase on average ?
-
 with orders as 
 (select distinct c.customer_key,first_name,last_name,cast(order_date as date) as order_date from dim_customers c 
 join fact_sales f on c.customer_key=f.customer_key )
@@ -311,13 +341,15 @@ join fact_sales f on c.customer_key=f.customer_key )
 over(partition by customer_key order by order_date)as next_order_date from orders )
 
 ,customer_avg_gap as (
-select customer_key, avg(datediff(d, order_date, next_order_date)) as avg_gap
+select customer_key,first_name,last_name, avg(datediff(d, order_date, next_order_date)) as avg_gap
 from next_order
 where next_order_date is not null
-group by customer_key
+group by customer_key,first_name,last_name
 )
+-- average days between order by customer
 select avg(avg_gap) as avg_days_between_orders from customer_avg_gap 
-
+-- average days between order for all customers
+select * from customer_avg_gap order by avg_gap desc
 
 -- top 10 spenders
 ;with top_50_spenders as (
@@ -487,6 +519,7 @@ with_recency as (
     cross join snapshot s
 ),
 
+
 ranked as (
     select *,
         ntile(2) over (order by recency_days asc) as recency_tile,   -- fewer days = better, so asc
@@ -505,6 +538,8 @@ from ranked
 order by total_spending desc
 
 
+
+-- YOY Growth
 with yearly_sales as (
     select 
         year(order_date) as order_year,
@@ -528,9 +563,25 @@ select
 from yearly_sales
 order by order_year
 
---DAX
--- percentage of customers who made one order and who made more than one 
+-- Revenue contributions by subcategories 
+with revenue_by_subcategory as (
+select sum(sales_amount) total_revenue,subcategory 
+from dim_products p join fact_sales f 
+on p.product_key=f.product_key
+group by subcategory
+)
+select subcategory,
+total_revenue,
+round(100.0 * total_revenue / sum(total_revenue) over (), 2) as pct_of_total
+from revenue_by_subcategory 
+order by pct_of_total desc
 
--- Top 10 customers → % revenue 
---Top 10% customers → % revenue
--- Top 20 products → % revenue
+-- Revenue from top 10% customers
+with cust as (
+    select customer_key, sum(sales_amount) as revenue,
+           ntile(10) over (order by sum(sales_amount) desc) as decile
+    from fact_sales
+    group by customer_key
+)
+select round(100.0 * sum(case when decile = 1 then revenue end) / sum(revenue), 2) as pct_top10
+from cust
