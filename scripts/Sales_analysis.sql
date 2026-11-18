@@ -1,3 +1,69 @@
+
+/*
+===============================================================================
+                  SQL DATA ANALYSIS - EXPLORATORY DATA ANALYSIS
+===============================================================================
+
+Description:
+    This script performs Exploratory Data Analysis (EDA) on a Sales Data
+    Warehouse using SQL Server. It explores sales transactions, product
+    performance, customer purchasing behavior, and business trends to extract
+    meaningful insights and support data-driven decision-making.
+
+Main Objectives:
+    1. Database Exploration:
+       - Explore database tables, columns, and data structures.
+       - Examine products, customers, and sales transactions.
+       - Identify the dataset's time range and key characteristics.
+
+    2. Sales Performance Analysis:
+       - Calculate total revenue, number of orders, average order value,
+         and total quantities sold.
+       - Identify top-performing products and product categories.
+       - Analyze revenue and profitability across products.
+       - Examine monthly and yearly sales trends.
+
+    3. Customer Analysis:
+       - Identify top customers based on spending and order frequency.
+       - Analyze customer spending patterns and purchasing behavior.
+       - Explore customer demographics and geographical distribution.
+       - Compare customer acquisition and retention.
+       - Measure repeat purchase behavior and time between purchases.
+
+    4. Customer Segmentation (RFM):
+       - Segment customers based on Recency, Frequency, and Monetary value.
+       - Apply different segmentation approaches using SQL window functions
+         and statistical measures.
+       - Identify high-value, frequent, and recently active customers.
+
+    5. Advanced SQL Analysis:
+       - Use Common Table Expressions (CTEs) to structure complex queries.
+       - Apply aggregate functions and multi-table joins.
+       - Use window functions such as ROW_NUMBER(), LAG(), LEAD(), and NTILE().
+       - Calculate Year-over-Year (YoY) growth and revenue contributions.
+       - Analyze revenue concentration among top-spending customers.
+
+Key SQL Concepts:
+    - Aggregate Functions (SUM, AVG, COUNT, MIN, MAX)
+    - JOINs and Subqueries
+    - Common Table Expressions (CTEs)
+    - Window Functions and Ranking
+    - CASE Statements
+    - Date Functions and Time-Based Analysis
+    - Percentile and Statistical Functions
+
+Dataset Structure:
+    - fact_sales: Sales transactions and order details.
+    - dim_products: Product attributes and categories.
+    - dim_customers: Customer information and demographics.
+
+Tools:
+    - Microsoft SQL Server
+    - SQL Server Management Studio (SSMS)
+
+===============================================================================
+*/
+
 Create database DataAnalytics
 
 
